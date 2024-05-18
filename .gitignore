@@ -1,3 +1,5 @@
+.DS_Store
+
 *.annot
 *.cmo
 *.cma
@@ -28,7 +30,9 @@ setup.log
 # Local OPAM switch
 _opam/
 
-data/*
+data/articles/*
+data/simplewiki-20211001-pages-articles-multistream.xml
+data/simplewiki-20211001-pages-articles-multistream.xml.bz2
 
  Byte-compiled / optimized / DLL files
 __pycache__/
