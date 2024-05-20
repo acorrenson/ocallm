@@ -71,7 +71,7 @@ module Sanitizer = struct
   let rec new_line (p : t) : string option =
     try
       let line = input_line p.input in
-      if line = "" then new_line p
+      if line = "" || String.starts_with ~prefix:"*" line then new_line p
       else Some line
     with End_of_file -> None
 
@@ -126,6 +126,17 @@ module Sanitizer = struct
     if Lexbuf.try_match p.lex "'''" then
       Some ()
     else let* () = next_char p in close_quoted p
+
+  let sanitize_link (p : t) : unit option =
+    let rec go str =
+      if Lexbuf.try_match p.lex "]]" then
+        Some (output_string p.output str)
+      else
+        match Lexbuf.next_char p.lex with
+        | None -> failwith "buffer got emptied while sanitizing a link..."
+        | Some '|' -> go ""
+        | Some c -> go (str ^ String.make 1 c)
+    in go ""
   
   let rec sanitize (skip : bool) (p : t) : unit option =
     let* () = if skip then skip_white p else Some () in
@@ -135,8 +146,25 @@ module Sanitizer = struct
     else if Lexbuf.try_match p.lex "[[Image:" then
       let* () = close_brackets p "[[" "]]" in
       sanitize skip p
+    else if Lexbuf.try_match p.lex "[[Category:" then
+      let* () = close_brackets p "[[" "]]" in
+      sanitize skip p
+    else if Lexbuf.try_match p.lex "[[" then
+      let* () = sanitize_link p in
+      sanitize false p
     else if Lexbuf.try_match p.lex "{{Infobox" then
       let* () = close_brackets p "{{" "}}" in
+      sanitize true p
+    else if Lexbuf.try_match p.lex "{{citeweb" then
+      let* () = close_brackets p "{{" "}}" in
+      sanitize true p
+    else if Lexbuf.try_match p.lex "{{cite" then
+      let* () = close_brackets p "{{" "}}" in
+      sanitize true p
+    else if Lexbuf.try_match p.lex "<ref>" then
+      let* () = close_brackets p "<ref>" "</ref>" in
+      sanitize true p
+    else if Lexbuf.try_match p.lex "{{reflist}}" then
       sanitize true p
     else if Lexbuf.try_match p.lex "=" then
       let* () = skip_line p in sanitize true p
