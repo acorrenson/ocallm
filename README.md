@@ -21,3 +21,6 @@ Wikitext is a markup language and therefore wikitext files contain tags, code, a
 This preprocessing step is performed by a custom *wikitext sanitizer* written in [OCaml](https://ocaml.org) (see `lib/sanitizer.ml`).
 
 
+## Commands
+
++ `ocallm sanitize`: run the wikitext sanitizer and generate `.sanitized` text files in `data/articles/`

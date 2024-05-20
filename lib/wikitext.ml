@@ -161,6 +161,9 @@ module Sanitizer = struct
     else if Lexbuf.try_match p.lex "{{cite" then
       let* () = close_brackets p "{{" "}}" in
       sanitize true p
+    else if Lexbuf.try_match p.lex "{|" then
+      let* () = close_brackets p "{|" "|}" in
+      sanitize true p
     else if Lexbuf.try_match p.lex "<ref>" then
       let* () = close_brackets p "<ref>" "</ref>" in
       sanitize true p
@@ -188,9 +191,12 @@ module Sanitizer = struct
       print_current_position p
     | None -> flush p.output
 
-  let sanitize (f : string) : unit =
-    let p = make f (f ^ ".sanitized") in
-    run p;
-    close_in p.input;
-    close_out p.output
+  let sanitize (f : string) : bool =
+    try begin
+      let p = make f (f ^ ".sanitized") in
+      run p;
+      close_in p.input;
+      close_out p.output;
+      true
+    end with _ -> false
 end
