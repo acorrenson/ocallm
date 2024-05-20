@@ -78,6 +78,7 @@ module Sanitizer = struct
   let refill (p : t) : bool option =
     if Lexbuf.is_empty p.lex then begin
       let* line = new_line p in
+      Printf.fprintf p.output "\n";
       p.lex <- Lexbuf.make line;
       Some true
     end else
@@ -108,10 +109,8 @@ module Sanitizer = struct
     | None -> let* _ = refill p in skip_char p
     | Some _ -> Some ()
 
-  let rec next_char (p : t) : char option =
-    match Lexbuf.next_char p.lex with
-    | None -> let* _ = refill p in next_char p
-    | res -> res
+  let next_char (p : t) : unit option =
+    Option.map (output_char p.output) (Lexbuf.next_char p.lex)
 
   let close_brackets (p : t) (b_open : string) (b_close : string) : unit option =
     let rec go count =
@@ -123,43 +122,43 @@ module Sanitizer = struct
       else let* () = skip_char p in go count
     in go 0
 
-  let close_quoted (p : t) : string option =
-    let rec go str =
-      if Lexbuf.try_match p.lex "'''" then
-        Some str
-      else let* c = next_char p in go (str ^ String.make 1 c)
-    in go ""
-
+  let rec close_quoted (p : t) : unit option =
+    if Lexbuf.try_match p.lex "'''" then
+      Some ()
+    else let* () = next_char p in close_quoted p
   
-  let rec next_word (p : t) : string option =
-    let* () = skip_white p in
+  let rec sanitize (skip : bool) (p : t) : unit option =
+    let* () = if skip then skip_white p else Some () in
     if Lexbuf.try_match p.lex "[[File:" then
       let* () = close_brackets p "[[" "]]" in
-      next_word p
+      sanitize true p
     else if Lexbuf.try_match p.lex "[[Image:" then
       let* () = close_brackets p "[[" "]]" in
-      next_word p
+      sanitize skip p
     else if Lexbuf.try_match p.lex "{{Infobox" then
       let* () = close_brackets p "{{" "}}" in
-      next_word p
+      sanitize true p
     else if Lexbuf.try_match p.lex "=" then
-      let* () = skip_line p in next_word p
+      let* () = skip_line p in sanitize true p
     else if Lexbuf.try_match p.lex "==" then
-      let* () = skip_line p in next_word p
+      let* () = skip_line p in sanitize true p
     else if Lexbuf.try_match p.lex "===" then
-      let* () = skip_line p in next_word p
+      let* () = skip_line p in sanitize true p
     else if Lexbuf.try_match p.lex "====" then
-      let* () = skip_line p in next_word p
+      let* () = skip_line p in sanitize true p
     else if Lexbuf.try_match p.lex "'''" then
-      close_quoted p
-    else None
+      let* () = close_quoted p in sanitize false p
+    else
+      match next_char p with
+      | None -> let* () = skip_line p in sanitize true p
+      | Some () -> sanitize false p
 
-  let rec run (p : t) : unit =
-    match next_word p with
-    | None -> print_current_position p
-    | Some w ->
-      Printf.fprintf p.output "%s " w;
-      run p
+  let run (p : t) : unit =
+    match sanitize true p with
+    | Some () ->
+      Printf.eprintf "something weird happened...\n";
+      print_current_position p
+    | None -> flush p.output
 
   let sanitize (f : string) : unit =
     let p = make f (f ^ ".sanitized") in
@@ -167,5 +166,3 @@ module Sanitizer = struct
     close_in p.input;
     close_out p.output
 end
-
-
