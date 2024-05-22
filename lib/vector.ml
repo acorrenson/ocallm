@@ -11,5 +11,8 @@ let create size : t =
 let zeros size : t =
   Array1.init float32 c_layout size (fun _ -> 0.)
 
+let random size : t =
+    Array1.init float32 c_layout size (fun _ -> Random.float max_float)
+
 let ones size : t =
   Array1.init float32 c_layout size (fun _ -> 1.)

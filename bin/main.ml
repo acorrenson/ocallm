@@ -33,6 +33,20 @@ let sanitize () =
     else ()
   ) (Sys.readdir src)
 
+let time_it (f : unit -> unit) : float =
+  let t = Sys.time () in
+  f ();
+  Sys.time () -. t
+  
+
+let stress_test () =
+  let n = 1024 in
+  let a = Vector.random n in
+  let b = Vector.random n in
+  let c = Vector.zeros n in
+  Printf.printf "CPU    runtime: %f\n" (time_it (fun () -> ignore(Linalg.slow_vec_mul a b c)));
+  Printf.printf "OpenCL runtime: %f\n" (time_it (fun () -> ignore(Linalg.vec_mul a b c)))
+
 let () =
   if Array.length Sys.argv < 2 then
     fail_and_usage ()
@@ -52,5 +66,6 @@ let () =
       let m = Matrix.of_array [| [| 1.; 0. |]; [| 0.; 2.|]|] in
       let v = Vector.of_array [| 2.; 3.|] in
       let p = Linalg.mat_vec_mul m v in
-      Printf.printf "matrix vector product is [%f %f]\n" p.{0} p.{1};
+      Printf.printf "matrix vector product is [%f %f]\n" p.{0} p.{1}
+    | "test" -> stress_test ()
     | _ -> fail_and_usage ()

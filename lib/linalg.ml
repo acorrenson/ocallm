@@ -17,6 +17,20 @@ let vec_dot (v1 : Vector.t) (v2 : Vector.t) : float =
   done;
   !res
 
+let slow_vec_dot (v1 : Vector.t) (v2 : Vector.t) : float =
+  let dim = Bigarray.Array1.dim v1 in
+  let res = ref 0. in
+  for i = 0 to dim - 1 do
+    res := !res +. v1.{i} *. v2.{i}
+  done;
+  !res
+
+let slow_vec_mul (v1 : Vector.t) (v2 : Vector.t) (v3 : Vector.t) : unit =
+  let dim = Bigarray.Array1.dim v1 in
+  for i = 0 to dim - 1 do
+    v3.{i} <- v1.{i} *. v2.{i}
+  done
+
 let mat_mul (m1 : Matrix.t) (m2 : Matrix.t) : float =
   failwith "todo"
 
