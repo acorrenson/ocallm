@@ -1,13 +1,20 @@
-(data_only_dirs kernels)
+(data_only_dirs kernels myopencl)
 
 (dirs :standard \ data)
 
 (rule
  (targets libmyopencl.so)
+ (deps
+  (source_tree myopencl))
  (mode
   (promote (until-clean)))
  (action
-  (copy myopencl/libmyopencl.so libmyopencl.so)))
+  (no-infer
+   (progn
+    (chdir
+     myopencl
+     (run make))
+    (copy myopencl/libmyopencl.so libmyopencl.so)))))
 
 ; (executable
 ;  (name myopencl)
