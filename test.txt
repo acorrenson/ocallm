@@ -1,9 +1,0 @@
-{{Infobox model|name=Catherine Tresa|image=|caption=|birth_name=Catherine Tresa Alexander|birth_date={{birth date and age|df=yes|1989|9|10}}|birth_place=[[Dubai]], [[United Arab Emirates]]|occupation={{hlist|[[Actress]]|[[model]]}}|years_active=2010 – present}}
-
-== Hello ==
-
-'''test 1 '''
-
-=== Hello ===
-
-'''test 2 '''

@@ -38,4 +38,5 @@ let () =
   else
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
+    | "opencl" -> Opencl.test_opencl "hello"
     | _ -> fail_and_usage ()

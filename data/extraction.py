@@ -19,7 +19,7 @@ class Extractor:
 
   def sanitize_title(self, content: str) -> str:
     return re.sub(self.bad_tokens, "_", content)
-  
+
   def sanitize_content(self, content: None | str) -> str:
     if content is None:
       return ""
@@ -59,4 +59,3 @@ if __name__ == "__main__":
   src = "simplewiki-20211001-pages-articles-multistream.xml"
   dst = "articles/"
   Extractor(src, dst).extract()
-  

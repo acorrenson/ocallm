@@ -1,0 +1,10 @@
+{
+  "files.associations": {
+    ".fantomasignore": "ignore",
+    "*.z3": "smt-lib",
+    "*.fpu": "plaintext",
+    "*.ltl": "plaintext",
+    "stdio.h": "c"
+  },
+  "C_Cpp.default.compilerPath": "/usr/bin/clang"
+}
