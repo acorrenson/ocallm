@@ -1,4 +1,5 @@
 open Ocallm
+(* open Linalg *)
 
 let src = "./data/articles"
 
@@ -38,5 +39,16 @@ let () =
   else
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
-    | "opencl" -> Opencl.test_opencl "hello"
+    | "opencl" ->
+      let c = Bigarray.(Array1.of_array int32 c_layout) [| 0l; 0l; 0l; 0l; |] in
+      let a = Bigarray.(Array1.of_array int32 c_layout) [| 1l; 2l; 3l; 4l; |] in
+      let b = Bigarray.(Array1.of_array int32 c_layout) [| 3l; 4l; 5l; 6l; |] in
+      Opencl.vec_addi a b c;
+      let c = Linalg.Vector.of_array [| 0.; 0.; 0.; 0.; |] in
+      let a = Linalg.Vector.of_array [| 1.; 2.; 3.; 4.; |] in
+      let b = Linalg.Vector.of_array [| 3.; 4.; 5.; 6.; |] in
+      Opencl.vec_add a b c;
+      for i = 0 to 3 do
+        Printf.printf "%f +. %f = %f\n" a.{i} b.{i} c.{i}
+      done
     | _ -> fail_and_usage ()
