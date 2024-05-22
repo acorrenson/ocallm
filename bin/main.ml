@@ -40,11 +40,17 @@ let () =
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
     | "opencl" ->
-      let c = Linalg.Vector.of_array [| 0.; 0.; 0.; 0.; |] in
-      let a = Linalg.Vector.of_array [| 1.; 2.; 3.; 4.; |] in
-      let b = Linalg.Vector.of_array [| 3.; 4.; 5.; 6.; |] in
-      Opencl.vec_add a b c;
+      let c = Vector.of_array [| 0.; 0.; 0.; 0.; |] in
+      let a = Vector.of_array [| 1.; 2.; 3.; 4.; |] in
+      let b = Vector.of_array [| 3.; 4.; 5.; 6.; |] in
+      Linalg.vec_add a b c;
       for i = 0 to 3 do
         Printf.printf "%f +. %f = %f\n" a.{i} b.{i} c.{i}
-      done
+      done;
+      let r = Linalg.vec_dot a b in
+      Printf.printf "dot product is %f\n" r;
+      let m = Matrix.of_array [| [| 1.; 0. |]; [| 0.; 2.|]|] in
+      let v = Vector.of_array [| 2.; 3.|] in
+      let p = Linalg.mat_vec_mul m v in
+      Printf.printf "matrix vector product is [%f %f]\n" p.{0} p.{1};
     | _ -> fail_and_usage ()

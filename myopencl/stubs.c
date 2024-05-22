@@ -160,75 +160,11 @@ void vec_bop(const char *name, const char *path, float *a, float *b, float *c,
 }
 
 void vec_add(float *a, float *b, float *c, int dim) {
-  device dev;
-  initialize(&dev);
-  load_kernel(&dev, "vec_add", "./myopencl/kernels/vec_addf.cl");
+  vec_bop("vec_add", "./myopencl/kernels/vec_add.cl", a, b, c, dim);
+}
 
-  cl_int err, err_a, err_b;
-  size_t size = sizeof(float) * dim;
-  cl_mem memory_A =
-      clCreateBuffer(dev.context, CL_MEM_READ_ONLY, size, NULL, NULL);
-  cl_mem memory_B =
-      clCreateBuffer(dev.context, CL_MEM_READ_ONLY, size, NULL, NULL);
-  cl_mem memory_C =
-      clCreateBuffer(dev.context, CL_MEM_WRITE_ONLY, size, NULL, NULL);
-  if (!memory_A || !memory_B || !memory_C) {
-    error("Error: Failed to allocate device memory!");
-  }
-  err_a = clEnqueueWriteBuffer(dev.commands, memory_A, CL_TRUE, 0, size, a, 0,
-                               NULL, NULL);
-  err_b = clEnqueueWriteBuffer(dev.commands, memory_B, CL_TRUE, 0, size, b, 0,
-                               NULL, NULL);
-
-  if (err_a != CL_SUCCESS || err_b != CL_SUCCESS) {
-    error("Error: Failed to write to source arrays!");
-  }
-
-  err = clSetKernelArg(dev.kernel, 0, sizeof(cl_mem), &memory_C);
-  err |= clSetKernelArg(dev.kernel, 1, sizeof(cl_mem), &memory_A);
-  err |= clSetKernelArg(dev.kernel, 2, sizeof(cl_mem), &memory_B);
-
-  if (err != CL_SUCCESS) {
-    error("Error: Failed to set kernel arguments!");
-  }
-
-  // Get the maximum work group size for executing the kernel on the device
-  size_t local;
-  size_t global;
-  err = clGetKernelWorkGroupInfo(dev.kernel, dev.id, CL_KERNEL_WORK_GROUP_SIZE,
-                                 sizeof(local), &local, NULL);
-  if (err != CL_SUCCESS) {
-    printf("Error: Failed to retrieve kernel work group info! %d\n", err);
-    exit(1);
-  }
-
-  // Execute the kernel over the entire range of our 1d input data set
-  // using the maximum number of work group items for this device
-  global = dim;
-  local = dim < local ? dim : local;
-  err = clEnqueueNDRangeKernel(dev.commands, dev.kernel, 1, NULL, &global,
-                               &local, 0, NULL, NULL);
-  if (err) {
-    error("Error: Failed to execute kernel!");
-  }
-
-  // Wait for the command commands to get serviced before reading back results
-  clFinish(dev.commands);
-
-  // Read back the results from the device to verify the output
-  err = clEnqueueReadBuffer(dev.commands, memory_C, CL_TRUE, 0, size, c, 0,
-                            NULL, NULL);
-  if (err != CL_SUCCESS) {
-    error("Error: Failed to copy output array!");
-  }
-
-  clReleaseMemObject(memory_A);
-  clReleaseMemObject(memory_B);
-  clReleaseMemObject(memory_C);
-  clReleaseProgram(dev.program);
-  clReleaseKernel(dev.kernel);
-  clReleaseCommandQueue(dev.commands);
-  clReleaseContext(dev.context);
+void vec_mul(float *a, float *b, float *c, int dim) {
+  vec_bop("vec_mul", "./myopencl/kernels/vec_mul.cl", a, b, c, dim);
 }
 
 void vec_add_stub(value a, value b, value c) {
@@ -237,4 +173,12 @@ void vec_add_stub(value a, value b, value c) {
   float *arr_b = Caml_ba_data_val(b);
   float *arr_c = Caml_ba_data_val(c);
   vec_add(arr_a, arr_b, arr_c, dim);
+}
+
+void vec_mul_stub(value a, value b, value c) {
+  int dim = Caml_ba_array_val(a)->dim[0];
+  float *arr_a = Caml_ba_data_val(a);
+  float *arr_b = Caml_ba_data_val(b);
+  float *arr_c = Caml_ba_data_val(c);
+  vec_mul(arr_a, arr_b, arr_c, dim);
 }
