@@ -3,6 +3,8 @@
 let[@inline] fail_if test msg =
   if test then failwith msg
 
+external init : unit -> unit = "opencl_init"
+
 external vec_add : Vector.t -> Vector.t -> Vector.t -> unit = "vec_add_stub"
 
 external vec_mul : Vector.t -> Vector.t -> Vector.t -> unit = "vec_mul_stub"
@@ -29,6 +31,12 @@ let slow_vec_mul (v1 : Vector.t) (v2 : Vector.t) (v3 : Vector.t) : unit =
   let dim = Bigarray.Array1.dim v1 in
   for i = 0 to dim - 1 do
     v3.{i} <- v1.{i} *. v2.{i}
+  done
+
+let slow_vec_add (v1 : Vector.t) (v2 : Vector.t) (v3 : Vector.t) : unit =
+  let dim = Bigarray.Array1.dim v1 in
+  for i = 0 to dim - 1 do
+    v3.{i} <- v1.{i} +. v2.{i}
   done
 
 let mat_mul (m1 : Matrix.t) (m2 : Matrix.t) : float =

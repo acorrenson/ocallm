@@ -5,16 +5,20 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
-struct device_s {
-  cl_device_id id;           // compute device id
-  cl_context context;        // compute context
-  cl_uint num_devices;       // number of devices
-  cl_command_queue commands; // compute command queue
-  cl_program program;        // compute program
-  cl_kernel kernel;          // compute kernel
-};
-typedef struct device_s device;
+static cl_device_id id;            // compute device id
+static cl_context context;         // compute context
+static cl_uint num_devices;        // number of devices
+static cl_command_queue commands;  // compute command queue
+static cl_program program_vec_add; // compute program
+static cl_program program_vec_mul; // compute program
+static cl_kernel kernel_vec_add;   // compute program
+static cl_kernel kernel_vec_mul;   // compute program
+static size_t vec_add_group_size;  // maximal group size for vec_add
+static size_t vec_mul_group_size;  // maximal group size for vec_add
+
+#define Device_val(v) (*((device **)Data_custom_val(v)))
 
 const char *clGetErrorString(int errorCode) {
   switch (errorCode) {
@@ -206,30 +210,7 @@ void error(char *msg) {
   exit(EXIT_FAILURE);
 }
 
-void initialize(device *dev) {
-  int err;
-  err =
-      clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 1, &dev->id, &dev->num_devices);
-  if (err != CL_SUCCESS) {
-    error("Error: Failed to create a device group!");
-  }
-
-  // Create a compute context
-  dev->context =
-      clCreateContext(NULL, dev->num_devices, &dev->id, NULL, NULL, &err);
-  if (!dev->context) {
-    error("Error: Failed to create a compute context!");
-  }
-
-  // Create a command commands
-  dev->commands = clCreateCommandQueue(dev->context, dev->id, 0, &err);
-  if (!dev->commands) {
-    error("Error: Failed to create a command queue!");
-  }
-}
-
-void load_kernel(device *dev, const char *name, const char *path) {
-  char *kernel_source;
+char *read_file(const char *path) {
   int length;
   FILE *f = fopen(path, "rb");
 
@@ -240,108 +221,180 @@ void load_kernel(device *dev, const char *name, const char *path) {
   fseek(f, 0, SEEK_END);
   length = ftell(f);
   fseek(f, 0, SEEK_SET);
-  kernel_source = malloc(length);
+  char *data = malloc(length);
 
-  fread(kernel_source, 1, length, f);
+  fread(data, 1, length, f);
   fclose(f);
-
-  int err;
-
-  // Create the compute program from the source buffer
-  dev->program = clCreateProgramWithSource(
-      dev->context, 1, (const char **)&kernel_source, NULL, &err);
-  if (!dev->program || err != CL_SUCCESS) {
-    error("Error: Failed to create compute program!");
-  }
-
-  // Build the program executable
-  err = clBuildProgram(dev->program, 0, NULL, NULL, NULL, NULL);
-  if (err != CL_SUCCESS) {
-    size_t len;
-    char buffer[2048];
-    clGetProgramBuildInfo(dev->program, dev->id, CL_PROGRAM_BUILD_LOG,
-                          sizeof(buffer), buffer, &len);
-    printf("%s\n", buffer);
-    error("Error: Failed to build program executable!");
-  }
-
-  // Create the compute kernel in the program we wish to run
-  dev->kernel = clCreateKernel(dev->program, name, &err);
-  if (!dev->kernel || err != CL_SUCCESS) {
-    error("Error: Failed to create compute kernel!");
-  }
+  return data;
 }
 
-void vec_bop(const char *name, const char *path, float *a, float *b, float *c,
-             int dim) {
-  device dev;
-  initialize(&dev);
-  load_kernel(&dev, name, path);
+void initialize() {
+  int err;
+  err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 1, &id, &num_devices);
+  if (err != CL_SUCCESS) {
+    error("Error: Failed to create a device group!");
+  }
 
+  // Create a compute context
+  context = clCreateContext(NULL, num_devices, &id, NULL, NULL, &err);
+  if (!context) {
+    error("Error: Failed to create a compute context!");
+  }
+
+  // Create a command commands
+  commands = clCreateCommandQueue(context, id, 0, &err);
+  if (!commands) {
+    error("Error: Failed to create a command queue!");
+  }
+
+  printf("OpenCL initialized!\n");
+}
+
+void load_kernels() {
+  char *kernel_source_add;
+  char *kernel_source_mul;
+  int err;
+
+  printf("loading kernels\n");
+
+  // Create program vec_add
+  kernel_source_add = read_file("./myopencl/kernels/vec_add.cl");
+  program_vec_add = clCreateProgramWithSource(
+      context, 1, (const char **)&kernel_source_add, NULL, &err);
+  if (!program_vec_add || err != CL_SUCCESS) {
+    error("Error: Failed to create compute program vec_add!");
+  }
+
+  printf("Kernel add loaded!\n");
+
+  // Create program vec_mul
+  kernel_source_mul = read_file("./myopencl/kernels/vec_mul.cl");
+  printf("Kernel mul loaded!\n");
+  program_vec_mul = clCreateProgramWithSource(
+      context, 1, (const char **)&kernel_source_mul, NULL, &err);
+  if (!program_vec_mul || err != CL_SUCCESS) {
+    error("Error: Failed to create compute program vec_mul!");
+  }
+
+  size_t len;
+  char buffer[2048];
+
+  // Build program vec_add
+  err = clBuildProgram(program_vec_add, 0, NULL, NULL, NULL, NULL);
+  if (err != CL_SUCCESS) {
+    clGetProgramBuildInfo(program_vec_add, id, CL_PROGRAM_BUILD_LOG,
+                          sizeof(buffer), buffer, &len);
+    printf("%s\n", buffer);
+    error("Error: Failed to build program vec_add!");
+  }
+
+  // Build program vec_mul
+  err = clBuildProgram(program_vec_mul, 0, NULL, NULL, NULL, NULL);
+  if (err != CL_SUCCESS) {
+    clGetProgramBuildInfo(program_vec_mul, id, CL_PROGRAM_BUILD_LOG,
+                          sizeof(buffer), buffer, &len);
+    printf("%s\n", buffer);
+    error("Error: Failed to build program vec_mul!");
+  }
+
+  // Create the compute kernel vec_add
+  kernel_vec_add = clCreateKernel(program_vec_add, "vec_add", &err);
+  if (!kernel_vec_add || err != CL_SUCCESS) {
+    error("Error: Failed to create compute kernel vec_add!");
+  }
+
+  // Create the compute kernel vec_mul
+  kernel_vec_mul = clCreateKernel(program_vec_mul, "vec_mul", &err);
+  if (!kernel_vec_mul || err != CL_SUCCESS) {
+    error("Error: Failed to create compute kernel vec_mul!");
+  }
+
+  err = clGetKernelWorkGroupInfo(kernel_vec_add, id, CL_KERNEL_WORK_GROUP_SIZE,
+                                 sizeof(vec_add_group_size),
+                                 &vec_add_group_size, NULL);
+  if (err != CL_SUCCESS) {
+    error("Error: Failed to retrieve kernel work group info for vec_add!\n");
+  }
+
+  err = clGetKernelWorkGroupInfo(kernel_vec_mul, id, CL_KERNEL_WORK_GROUP_SIZE,
+                                 sizeof(vec_mul_group_size),
+                                 &vec_mul_group_size, NULL);
+  if (err != CL_SUCCESS) {
+    error("Error: Failed to retrieve kernel work group info for vec_mul!\n");
+  }
+
+  printf("Kernel loaded!\n");
+  free(kernel_source_add);
+  free(kernel_source_mul);
+}
+
+void opencl_init() {
+  initialize();
+  load_kernels();
+}
+
+#define VEC_ADD 0
+#define VEC_MUL 1
+
+void vec_bop(int op, float *a, float *b, float *c, int dim) {
+  clock_t start = clock();
   cl_int err, err_a, err_b;
   size_t size = sizeof(float) * dim;
-  cl_mem memory_A =
-      clCreateBuffer(dev.context, CL_MEM_READ_ONLY, size, NULL, NULL);
-  cl_mem memory_B =
-      clCreateBuffer(dev.context, CL_MEM_READ_ONLY, size, NULL, NULL);
+  cl_mem memory_A = clCreateBuffer(context, CL_MEM_READ_ONLY, size, NULL, NULL);
+  cl_mem memory_B = clCreateBuffer(context, CL_MEM_READ_ONLY, size, NULL, NULL);
   cl_mem memory_C =
-      clCreateBuffer(dev.context, CL_MEM_WRITE_ONLY, size, NULL, NULL);
+      clCreateBuffer(context, CL_MEM_WRITE_ONLY, size, NULL, NULL);
   if (!memory_A || !memory_B || !memory_C) {
     error("Error: Failed to allocate device memory!");
   }
-  err_a = clEnqueueWriteBuffer(dev.commands, memory_A, CL_TRUE, 0, size, a, 0,
-                               NULL, NULL);
-  err_b = clEnqueueWriteBuffer(dev.commands, memory_B, CL_TRUE, 0, size, b, 0,
-                               NULL, NULL);
+  err_a = clEnqueueWriteBuffer(commands, memory_A, CL_TRUE, 0, size, a, 0, NULL,
+                               NULL);
+  err_b = clEnqueueWriteBuffer(commands, memory_B, CL_TRUE, 0, size, b, 0, NULL,
+                               NULL);
 
   if (err_a != CL_SUCCESS || err_b != CL_SUCCESS) {
     error("Error: Failed to write to source arrays!");
   }
 
-  err = clSetKernelArg(dev.kernel, 0, sizeof(cl_mem), &memory_C);
-  err |= clSetKernelArg(dev.kernel, 1, sizeof(cl_mem), &memory_A);
-  err |= clSetKernelArg(dev.kernel, 2, sizeof(cl_mem), &memory_B);
+  cl_kernel kernel;
+  size_t local;
+  size_t global;
+
+  if (op == VEC_ADD) {
+    kernel = kernel_vec_add;
+    local = vec_add_group_size;
+  } else if (op == VEC_MUL) {
+    kernel = kernel_vec_mul;
+    local = vec_mul_group_size;
+  } else {
+    error("Invalid binary operation");
+  }
+
+  err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &memory_C);
+  err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &memory_A);
+  err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &memory_B);
 
   if (err != CL_SUCCESS) {
     error("Error: Failed to set kernel arguments!");
   }
 
-  // Get the maximum work group size for executing the kernel on the device
-  size_t local;
-  size_t global;
-  err = clGetKernelWorkGroupInfo(dev.kernel, dev.id, CL_KERNEL_WORK_GROUP_SIZE,
-                                 sizeof(local), &local, NULL);
-  if (err != CL_SUCCESS) {
-    printf("Error: Failed to retrieve kernel work group info! %d\n", err);
-    exit(1);
-  }
-
-  size_t max_work_item_sizes[3] = {0, 0, 0};
-  clGetDeviceInfo(dev.id, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t) * 3,
-                  max_work_item_sizes, NULL);
-  size_t max_work_item_size = max_work_item_sizes[0];
-  printf("max work item size is %zu\n", max_work_item_size);
-  printf("max local work size is %zu\n", local);
-
-  // CL_DEVICE_MAX_WORK_ITEM_SIZES
-
   // Execute the kernel over the entire range of our 1d input data set
   // using the maximum number of work group items for this device
   global = dim;
   local = dim < local ? dim : local;
-  err = clEnqueueNDRangeKernel(dev.commands, dev.kernel, 1, NULL, &global,
-                               &local, 0, NULL, NULL);
+  err = clEnqueueNDRangeKernel(commands, kernel, 1, NULL, &global, &local, 0,
+                               NULL, NULL);
   if (err) {
     printf("ClError: %s\n", clGetErrorString(err));
     error("Error: Failed to execute kernel!");
   }
 
   // Wait for the command commands to get serviced before reading back results
-  clFinish(dev.commands);
+  clFinish(commands);
 
   // Read back the results from the device to verify the output
-  err = clEnqueueReadBuffer(dev.commands, memory_C, CL_TRUE, 0, size, c, 0,
-                            NULL, NULL);
+  err = clEnqueueReadBuffer(commands, memory_C, CL_TRUE, 0, size, c, 0, NULL,
+                            NULL);
   if (err != CL_SUCCESS) {
     error("Error: Failed to copy output array!");
   }
@@ -349,18 +402,19 @@ void vec_bop(const char *name, const char *path, float *a, float *b, float *c,
   clReleaseMemObject(memory_A);
   clReleaseMemObject(memory_B);
   clReleaseMemObject(memory_C);
-  clReleaseProgram(dev.program);
-  clReleaseKernel(dev.kernel);
-  clReleaseCommandQueue(dev.commands);
-  clReleaseContext(dev.context);
+  clReleaseCommandQueue(commands);
+
+  clock_t stop = clock();
+  double elapsed = (float)(stop - start) / CLOCKS_PER_SEC;
+  printf("actual compute time = %f\n", elapsed);
 }
 
 void vec_add(float *a, float *b, float *c, int dim) {
-  vec_bop("vec_add", "./myopencl/kernels/vec_add.cl", a, b, c, dim);
+  vec_bop(VEC_ADD, a, b, c, dim);
 }
 
 void vec_mul(float *a, float *b, float *c, int dim) {
-  vec_bop("vec_mul", "./myopencl/kernels/vec_mul.cl", a, b, c, dim);
+  vec_bop(VEC_MUL, a, b, c, dim);
 }
 
 void vec_add_stub(value a, value b, value c) {

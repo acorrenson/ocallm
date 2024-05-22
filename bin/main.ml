@@ -40,7 +40,7 @@ let time_it (f : unit -> unit) : float =
   
 
 let stress_test () =
-  let n = 1024 in
+  let n = 1 lsl 22 in
   let a = Vector.random n in
   let b = Vector.random n in
   let c = Vector.zeros n in
@@ -54,6 +54,7 @@ let () =
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
     | "opencl" ->
+      Linalg.init ();
       let c = Vector.of_array [| 0.; 0.; 0.; 0.; |] in
       let a = Vector.of_array [| 1.; 2.; 3.; 4.; |] in
       let b = Vector.of_array [| 3.; 4.; 5.; 6.; |] in
@@ -67,5 +68,7 @@ let () =
       let v = Vector.of_array [| 2.; 3.|] in
       let p = Linalg.mat_vec_mul m v in
       Printf.printf "matrix vector product is [%f %f]\n" p.{0} p.{1}
-    | "test" -> stress_test ()
+    | "test" ->
+      Linalg.init ();
+      stress_test ()
     | _ -> fail_and_usage ()
