@@ -33,19 +33,19 @@ let sanitize () =
     else ()
   ) (Sys.readdir src)
 
-let time_it (f : unit -> unit) : float =
+let _time_it (f : unit -> unit) : float =
   let t = Sys.time () in
   f ();
   Sys.time () -. t
   
 
-let stress_test () =
+(* let stress_test () =
   let n = 1 lsl 22 in
   let a = Vector.random n in
   let b = Vector.random n in
   let c = Vector.zeros n in
   Printf.printf "CPU    runtime: %f\n" (time_it (fun () -> ignore(Linalg.slow_vec_mul a b c)));
-  Printf.printf "OpenCL runtime: %f\n" (time_it (fun () -> ignore(Linalg.vec_mul a b c)))
+  Printf.printf "OpenCL runtime: %f\n" (time_it (fun () -> ignore(Linalg.vec_mul a b c))) *)
 
 let () =
   if Array.length Sys.argv < 2 then
@@ -53,7 +53,7 @@ let () =
   else
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
-    | "opencl" ->
+    (* | "opencl" ->
       Linalg.init ();
       let c = Vector.of_array [| 0.; 0.; 0.; 0.; |] in
       let a = Vector.of_array [| 1.; 2.; 3.; 4.; |] in
@@ -70,5 +70,5 @@ let () =
       Printf.printf "matrix vector product is [%f %f]\n" p.{0} p.{1}
     | "test" ->
       Linalg.init ();
-      stress_test ()
+      stress_test () *)
     | _ -> fail_and_usage ()

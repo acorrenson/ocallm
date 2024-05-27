@@ -16,3 +16,19 @@ let random size : t =
 
 let ones size : t =
   Array1.init float32 c_layout size (fun _ -> 1.)
+
+let dim (x : t) : int =
+  Array1.dim x
+
+let map (f : float -> float) (x : t) : t =
+  Array1.init float32 c_layout (dim x) (fun i -> f x.{i})
+
+let mapi (f : int -> float -> float) (x : t) : t =
+  Array1.init float32 c_layout (dim x) (fun i -> f i x.{i})
+
+let sum (x : t) : float =
+  let s = ref 0. in
+  for i = 0 to pred (dim x) do
+    s := !s +. x.{i}
+  done;
+  !s

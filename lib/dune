@@ -1,3 +1,6 @@
+; (library
+;  (name ocallm)
+;  (flags -I ../ -cclib -lmyopencl))
+
 (library
- (name ocallm)
- (flags -I ../ -cclib -lmyopencl))
+ (name ocallm))
