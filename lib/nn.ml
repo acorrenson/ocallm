@@ -43,8 +43,20 @@ module Layer = struct
   let sigmoid (nodes : int) : t =
     { nodes; activation = SIGMOID }
 
+  (** feed the activations [x] from the previous layers
+      into the current layer [lay] (assuming weights of [lay] are [w]).
+      Returns a tuple [(z, a)] where [z = w.x] and [a = activation(z)].
+  *)
+  let forward_za (lay : t) (w : Matrix.t) (x : Vector.t) =
+    let z = Linalg.mat_vec_mul w x in
+    let a = Activation.activate lay.activation z in
+    (z, a)
+
+  (** feed the activations [x] from the previous layers
+      into the current layer [lay] (assuming weights of [lay] are [w])
+  *)
   let forward (lay : t) (w : Matrix.t) (x : Vector.t) =
-    Activation.activate lay.activation (Linalg.mat_vec_mul w x)
+    snd (forward_za lay w x)
 
   let pp fmt (lay : t) =
     Format.fprintf fmt "(%d => %a)" lay.nodes Activation.pp lay.activation
@@ -66,10 +78,10 @@ module NN = struct
     loss   : Loss.t;          (** How to evaluate the error of the model *)
     post   : Vector.t -> 'o;  (** How to transform outputs into predictions *)
 
-    weights : Matrix.t array; (** Current weights *)
-    _Z : Vector.t array;      (** Current outputs *)
-    _A : Vector.t array;      (** Current activations *)
-    _D : Vector.t array;      (** Current deltas *)
+    weights : Matrix.t array; (** Current weights (per layer) *)
+    _Z : Vector.t array;      (** Current outputs (per layer) *)
+    _A : Vector.t array;      (** Current activations (per layer) *)
+    _D : Vector.t array;      (** Current deltas (per layer)*)
   }
 
   let make_simple (inputs : int) (l : Layer.t list) =
@@ -88,16 +100,19 @@ module NN = struct
     let _D = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
     { pre; inputs; layers; loss; post; weights; _Z; _A; _D }
 
-  let activate nn i =
-    Activation.activate nn.layers.(i).activation
-
+  (** Feed an input [x] to a model [nn] (precomputes outputss & activations of all layers) *)
   let forward (nn : ('i, 'o) t) (x : 'i) : unit =
     let nb_layers = Array.length nn.layers in
-    nn._A.(0) <- Layer.forward nn.layers.(0) nn.weights.(0) (nn.pre x);
+    let (z0, a0) = Layer.forward_za nn.layers.(0) nn.weights.(0) (nn.pre x) in
+    nn._Z.(0) <- z0;
+    nn._A.(0) <- a0;
     for i = 1 to nb_layers - 1 do
-      nn._A.(i) <- Layer.forward nn.layers.(i) nn.weights.(i) nn._A.(i - 1)
+      let (zi, ai) = Layer.forward_za nn.layers.(i) nn.weights.(i) nn._A.(i - 1) in
+      nn._Z.(i) <- zi;
+      nn._A.(i) <- ai;
     done
 
+  (** Feed an input [x] to a model [nn] and outputs a final prediction (without computing/storing all intermediate results) *)
   let predict_eager (nn : ('i, 'o) t) (x : 'i) : 'o =
     let v = ref (nn.pre x) in
     let nb_layers = Array.length nn.layers in
@@ -106,10 +121,15 @@ module NN = struct
     done;
     nn.post (!v)
 
+  (** Feed an input [x] to a model [nn] and outputs a final prediction (computes and stores all intermediate results) *)
   let predict (nn : ('i, 'o) t) (x : 'i) : 'o =
     let i_last = Array.length nn.layers - 1 in
     forward nn x;
     nn.post nn._A.(i_last)
+
+  (** Backpropagate current error *)
+  let backward (nn : ('i, 'o) t) : unit =
+    failwith "todo"
 end
 
 let test () =
