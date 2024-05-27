@@ -1,3 +1,6 @@
+(** {1 Neural Network Library} *)
+
+(** Useful (scalar) functions and their derivatives *)
 module Functions = struct
   let relu (x : float) =
     max 0. x
@@ -12,18 +15,21 @@ module Functions = struct
     sigmoid x *. (1. -. sigmoid x)
 end
 
+(** Activation functions *)
 module Activation = struct
   type t = RELU | SIGMOID
 
-  let activate (a : t) (x : Vector.t) =
-    match a with
-    | RELU -> Vector.map Functions.relu x
-    | SIGMOID -> Vector.map Functions.sigmoid x
+  (** Apply activation to a vector (compute [a = sigma(z)]) *)
+  let activate (act : t) (z : Vector.t) =
+    match act with
+    | RELU -> Vector.map Functions.relu z
+    | SIGMOID -> Vector.map Functions.sigmoid z
 
-  let activate' (a : t) (x : float) =
-    match a with
-    | RELU -> Functions.relu' x
-    | SIGMOID -> Functions.sigmoid' x
+  (** Apply the derivative of the activation to a vector (compute [sigma'(z)] *)
+  let activate' (act : t) (z : float) =
+    match act with
+    | RELU -> Functions.relu' z
+    | SIGMOID -> Functions.sigmoid' z
 
   let pp fmt (act : t) =
     match act with
@@ -31,15 +37,18 @@ module Activation = struct
     | SIGMOID -> Format.fprintf fmt "SIGMOID"
 end
 
+(** Representation of layers of a network *)
 module Layer = struct
   type t = {
-    nodes : int;
-    activation : Activation.t;
+    nodes : int;                (** number of nodes*)
+    activation : Activation.t;  (** activation function *)
   }
 
+  (** create a relu layer *)
   let relu (nodes : int) : t =
     { nodes; activation = RELU }
 
+  (** create a sigmoid layer *)
   let sigmoid (nodes : int) : t =
     { nodes; activation = SIGMOID }
 
@@ -70,6 +79,7 @@ module Loss = struct
   type t = MSE | CROSS_ENTROPY
 end
 
+(** Neural Networks *)
 module NN = struct
   type ('i, 'o) t = {
     pre    : 'i -> Vector.t;  (** How to transform inputs into vectors *)
@@ -128,12 +138,23 @@ module NN = struct
     nn.post nn._A.(i_last)
 
   (** Backpropagate current error *)
-  let backward (nn : ('i, 'o) t) : unit =
+  let backward (_nn : ('i, 'o) t) : unit =
     failwith "todo"
+
+  let pp fmt nn =
+    let nb_layers = Array.length nn.layers in
+    Format.fprintf fmt "%d-" nn.inputs;
+    Array.iteri (fun i lay ->
+      if i = nb_layers - 1 then
+        Format.fprintf fmt "%a" Layer.pp lay
+      else
+        Format.fprintf fmt "%a-" Layer.pp lay
+    ) nn.layers
 end
 
 let test () =
   let nn = NN.make_simple 2 [ Layer.relu 2; Layer.relu 3; Layer.sigmoid 2 ] in
+  Format.printf "%a\n" NN.pp nn;
   let x = Vector.of_array [| 1.; 2. |] in
   let p1 = NN.predict nn x in
   let p2 = NN.predict_eager nn x in
