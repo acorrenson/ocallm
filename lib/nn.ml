@@ -52,8 +52,8 @@ module Layer = struct
   let sigmoid (nodes : int) : t =
     { nodes; activation = SIGMOID }
 
-  (** feed the activations [x] from the previous layers
-      into the current layer [lay] (assuming weights of [lay] are [w]).
+  (** Feed a vector [x] (from the previous layer)
+      into the current layer [lay], assuming weights of [lay] are [w].
       Returns a tuple [(z, a)] where [z = w.x] and [a = activation(z)].
   *)
   let forward_za (lay : t) (w : Matrix.t) (x : Vector.t) =
@@ -61,8 +61,8 @@ module Layer = struct
     let a = Activation.activate lay.activation z in
     (z, a)
 
-  (** feed the activations [x] from the previous layers
-      into the current layer [lay] (assuming weights of [lay] are [w])
+  (** Feed a vector [x] (from the previous layer)
+      into the current layer [lay], assuming weights of [lay] are [w].
   *)
   let forward (lay : t) (w : Matrix.t) (x : Vector.t) =
     snd (forward_za lay w x)
@@ -181,15 +181,19 @@ module NN = struct
 
   (** Backpropagate the error made when target should be [target] *)
   let backward (nn : ('i, 'o) t) (x : 'i) (target : Loss.target) : unit =
+    let lr = exp (-. 3.) in
     let nb_layers = Array.length nn.layers in
     let i_last = nb_layers - 1 in
     let logits = nn._A.(i_last) in
+    
+    (* Compute the deltas *)
     nn._D.(i_last) <- Loss.backward nn.loss logits target;
     for i = i_last - 1 downto 0 do
       nn._D.(i) <- Layer.backward nn.layers.(i) nn._Z.(i) nn.weights.(i + 1) nn._D.(i + 1);
       assert (Vector.dim nn._D.(i) = nn.layers.(i).nodes);
     done;
-    let lr = exp (-. 3.) in
+
+    (* Update the weights *)
     nn.weights.(0) <- Linalg.(mat_sub nn.weights.(0) (scale lr (vec_vec_t_mul nn._D.(0) (nn.pre x))));
     for i = 1 to i_last do
       nn.weights.(i) <- Linalg.(mat_sub nn.weights.(i) (scale lr (vec_vec_t_mul nn._D.(i) nn._A.(i - 1))));
@@ -217,8 +221,8 @@ let test () =
   let y = Loss.Class 0 in
   for _ = 0 to 50 do
     NN.forward nn x;
-    Printf.printf "current loss = %1.3f\n" (NN.loss nn y);
-    NN.backward nn x (Loss.Class 0)
+    Printf.printf "current loss = %1.10f\n" (NN.loss nn y);
+    NN.backward nn x y
   done
 
   (* for i = 0 to 2 do
