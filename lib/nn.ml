@@ -67,6 +67,14 @@ module Layer = struct
   let forward (lay : t) (w : Matrix.t) (x : Vector.t) =
     snd (forward_za lay w x)
 
+  (** Compute the deltas of the current layer as a function of the weights
+      [w] of the next layer, the deltas [d] of the next layer, and the logits [z]
+      of the current layer
+  *)
+  let backward (lay : t) (z : Vector.t) (w : Matrix.t) (d : Vector.t) =
+    let z' = Vector.map (Activation.activate' lay.activation) z in
+    Linalg.(hadamar z' (mat_t_vec_mul w d))
+
   let pp fmt (lay : t) =
     Format.fprintf fmt "(%d => %a)" lay.nodes Activation.pp lay.activation
 end
@@ -77,6 +85,40 @@ module Loss = struct
     - CROSS_ENTROPY expects the last layer to have dimension [n] where [n] is a number of classes
   *)
   type t = MSE | CROSS_ENTROPY
+
+  type target =
+    | Class of int
+    | Vec of Vector.t
+
+  let softmax (x : Vector.t) =
+    let y = Vector.map exp x in
+    let s = Vector.sum y in
+    for i = 0 to Vector.dim y - 1 do
+      y.{i} <- y.{i} /. s
+    done;
+    y
+
+  (** Computes the loss as a function of logits *)
+  let forward (loss : t) (logits : Vector.t) (target : target) =
+    match loss with
+    | MSE -> failwith "MSE not implemented"
+    | CROSS_ENTROPY ->
+      match target with
+      | Class c ->
+        Vector.(logits |> map exp |> sum |> log) -. logits.{c}
+      | Vec _ -> failwith "only classes are supported as targets"
+
+  (** Directional derivatives of the loss (w.r.t logits) *)
+  let backward (loss : t) (logits : Vector.t) (target : target) : Vector.t =
+    match loss with
+    | MSE -> failwith "MSE not implemented"
+    | CROSS_ENTROPY ->
+      match target with
+      | Class c ->
+        let v = softmax logits in
+        v.{c} <- v.{c} -. 1.; v
+      | Vec _ -> failwith "only classes are supported as targets"
+
 end
 
 (** Neural Networks *)
@@ -98,7 +140,7 @@ module NN = struct
     let nb_layers = List.length l in
     let pre = Fun.id in
     let layers = Array.of_list l in
-    let loss = Loss.MSE in
+    let loss = Loss.CROSS_ENTROPY in
     let post = Fun.id in
     let weights = Array.init nb_layers (fun i ->
       let width = if i = 0 then inputs else layers.(i - 1).nodes in
@@ -137,9 +179,25 @@ module NN = struct
     forward nn x;
     nn.post nn._A.(i_last)
 
-  (** Backpropagate current error *)
-  let backward (_nn : ('i, 'o) t) : unit =
-    failwith "todo"
+  (** Backpropagate the error made when target should be [target] *)
+  let backward (nn : ('i, 'o) t) (x : 'i) (target : Loss.target) : unit =
+    let nb_layers = Array.length nn.layers in
+    let i_last = nb_layers - 1 in
+    let logits = nn._A.(i_last) in
+    nn._D.(i_last) <- Loss.backward nn.loss logits target;
+    for i = i_last - 1 downto 0 do
+      nn._D.(i) <- Layer.backward nn.layers.(i) nn._Z.(i) nn.weights.(i + 1) nn._D.(i + 1);
+      assert (Vector.dim nn._D.(i) = nn.layers.(i).nodes);
+    done;
+    let lr = exp (-. 3.) in
+    nn.weights.(0) <- Linalg.(mat_sub nn.weights.(0) (scale lr (vec_vec_t_mul nn._D.(0) (nn.pre x))));
+    for i = 1 to i_last do
+      nn.weights.(i) <- Linalg.(mat_sub nn.weights.(i) (scale lr (vec_vec_t_mul nn._D.(i) nn._A.(i - 1))));
+    done
+
+  let loss (nn : ('i, 'o) t) (target : Loss.target) : float =
+    let i_last = Array.length nn.layers - 1 in
+    Loss.forward nn.loss (nn._A.(i_last)) target
 
   let pp fmt nn =
     let nb_layers = Array.length nn.layers in
@@ -156,16 +214,15 @@ let test () =
   let nn = NN.make_simple 2 [ Layer.relu 2; Layer.relu 3; Layer.sigmoid 2 ] in
   Format.printf "%a\n" NN.pp nn;
   let x = Vector.of_array [| 1.; 2. |] in
-  let p1 = NN.predict nn x in
-  let p2 = NN.predict_eager nn x in
-  Array.iteri (fun i v ->
-    let len = Vector.dim v in
-    for j = 0 to len - 1 do
-      Printf.printf "A_%d[%d] = %f\n" i j nn._A.(i).{j}
-    done
-  ) nn._A;
-  let len = Vector.dim p2 in
-  for j = 0 to len - 1 do
-    Printf.printf "P[%d] = %f\n" j p2.{j}
-  done;
-  assert (p1 = p2)
+  let y = Loss.Class 0 in
+  for _ = 0 to 50 do
+    NN.forward nn x;
+    Printf.printf "current loss = %1.3f\n" (NN.loss nn y);
+    NN.backward nn x (Loss.Class 0)
+  done
+
+  (* for i = 0 to 2 do
+
+    Format.printf "Deltas of layer %d are:\n%a" i Vector.pp nn._D.(i)
+  done
+ *)

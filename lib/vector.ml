@@ -26,9 +26,19 @@ let map (f : float -> float) (x : t) : t =
 let mapi (f : int -> float -> float) (x : t) : t =
   Array1.init float32 c_layout (dim x) (fun i -> f i x.{i})
 
+let init (dim : int) (f : int -> float) : t =
+  Array1.init float32 c_layout dim (fun i -> f i)
+
 let sum (x : t) : float =
   let s = ref 0. in
   for i = 0 to pred (dim x) do
     s := !s +. x.{i}
   done;
   !s
+
+let pp fmt (v : t) : unit =
+  Format.fprintf fmt "Vector\n";
+  for i = 0 to dim v - 1 do
+    Format.fprintf fmt "  %1.3f\n" v.{i}
+  done
+

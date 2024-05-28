@@ -51,3 +51,42 @@ let mat_vec_mul (m : Matrix.t) (v : Vector.t) : Vector.t =
     res.{i} <- vec_dot (Matrix.row m i) v;
   done;
   res
+
+let mat_sub (m1 : Matrix.t) (m2 : Matrix.t) : Matrix.t =
+  assert (Matrix.dim1 m1 = Matrix.dim1 m2);
+  assert (Matrix.dim2 m1 = Matrix.dim2 m2);
+  Matrix.init ~height:(Matrix.dim1 m1) ~width:(Matrix.dim2 m1) (fun i j ->
+    m1.{i, j} -. m2.{i, j}
+  )
+
+let scale (c : float) (m : Matrix.t) : Matrix.t =
+  Matrix.init ~height:(Matrix.dim1 m) ~width:(Matrix.dim2 m) (fun i j ->
+    c *. m.{i, j}
+  )
+
+(** Multiply a vector with a transposed vector (i.e. [vec_vec_t_mul v1 v2 = v1 . v2^t]) *)
+let vec_vec_t_mul (v1 : Vector.t) (v2 : Vector.t) =
+  let width = Vector.dim v2 in
+  let height = Vector.dim v1 in
+  let m = Matrix.create ~width ~height in
+  for i = 0 to height - 1 do
+    for j = 0 to width - 1 do
+      m.{i, j} <- v1.{i} *. v2.{j}
+    done
+  done;
+  m
+
+let hadamar (v1 : Vector.t) (v2 : Vector.t) =
+  assert (Vector.dim v1 = Vector.dim v2);
+  Vector.init (Vector.dim v1) (fun i -> v1.{i} *. v2.{i})
+
+(** Multiply the transposed of a matrix with a vector (i.e. [mat_t_vec_mul m v = m^t . v]) *)
+let mat_t_vec_mul (m : Matrix.t) (v : Vector.t) =
+  assert (Matrix.dim1 m = Vector.dim v);
+  Vector.init (Matrix.dim2 m) (fun i ->
+    let r = ref 0. in
+    for j = 0 to Matrix.dim1 m - 1 do
+      r := !r +. v.{j} *. m.{j, i}
+    done;
+    !r
+  )

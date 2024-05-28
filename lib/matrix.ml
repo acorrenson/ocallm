@@ -25,8 +25,21 @@ let ones ~width ~height : t =
 let row (m : t) (i : int) : Vector.t =
   Array2.slice_left m i
 
+let init ~width ~height f : t =
+  Array2.init float32 c_layout height width f
+
 let dim1 (m : t) : int =
   Array2.dim1 m
 
 let dim2 (m : t) : int =
   Array2.dim2 m
+
+let pp fmt (m : t) : unit =
+  Format.fprintf fmt "Matrix\n";
+  for i = 0 to dim1 m - 1 do
+    Format.fprintf fmt "  ";
+    for j = 0 to dim2 m - 1 do
+      Format.fprintf fmt "%1.3f " m.{i, j}
+    done;
+    Format.fprintf fmt "\n"
+  done
