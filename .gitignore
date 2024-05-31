@@ -32,6 +32,7 @@ setup.log
 _opam/
 
 data/articles/*
+data/mnist/*
 data/simplewiki-20211001-pages-articles-multistream.xml
 data/simplewiki-20211001-pages-articles-multistream.xml.bz2
 
