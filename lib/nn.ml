@@ -105,6 +105,9 @@ module Loss = struct
     | CROSS_ENTROPY ->
       match target with
       | Class c ->
+        Format.printf "loss from logits: [%f %f %f ...]\n" logits.{0} logits.{1} logits.{2};
+        flush_all ();
+        ignore(read_line ());
         Vector.(logits |> map exp |> sum |> log) -. logits.{c}
       | Vec _ -> failwith "only classes are supported as targets"
 
@@ -136,6 +139,19 @@ module NN = struct
     _D : Vector.t array;      (** Current deltas (per layer)*)
   }
 
+  let make pre inputs (layers : Layer.t list) loss post =
+    let nb_layers = List.length layers in
+    let layers = Array.of_list layers in
+    let weights = Array.init nb_layers (fun i ->
+      let width = if i = 0 then inputs else layers.(i - 1).nodes in
+      let height = layers.(i).nodes in
+      Matrix.random ~width ~height
+    ) in
+    let _Z = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
+    let _A = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
+    let _D = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
+    { pre; inputs; layers; loss; post; _A; _D; _Z; weights }
+
   let make_simple (inputs : int) (l : Layer.t list) =
     let nb_layers = List.length l in
     let pre = Fun.id in
@@ -147,9 +163,9 @@ module NN = struct
       let height = layers.(i).nodes in
       Matrix.random ~width ~height
     ) in
-    let _Z = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
-    let _A = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
-    let _D = Array.init nb_layers (fun i -> Vector.create layers.(i).nodes) in
+    let _Z = Array.init nb_layers (fun i -> Vector.random layers.(i).nodes) in
+    let _A = Array.init nb_layers (fun i -> Vector.random layers.(i).nodes) in
+    let _D = Array.init nb_layers (fun i -> Vector.random layers.(i).nodes) in
     { pre; inputs; layers; loss; post; weights; _Z; _A; _D }
 
   (** Feed an input [x] to a model [nn] (precomputes outputss & activations of all layers) *)
@@ -172,6 +188,14 @@ module NN = struct
       v := Layer.forward nn.layers.(i) nn.weights.(i) !v
     done;
     nn.post (!v)
+
+  let loss_eager (nn : ('i, 'o) t) (x : 'i) (target : Loss.target) : float =
+    let v = ref (nn.pre x) in
+    let nb_layers = Array.length nn.layers in
+    for i = 0 to nb_layers - 1 do
+      v := Layer.forward nn.layers.(i) nn.weights.(i) !v
+    done;
+    Loss.forward nn.loss !v target
 
   (** Feed an input [x] to a model [nn] and outputs a final prediction (computes and stores all intermediate results) *)
   let predict (nn : ('i, 'o) t) (x : 'i) : 'o =

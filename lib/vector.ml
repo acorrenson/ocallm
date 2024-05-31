@@ -42,3 +42,14 @@ let pp fmt (v : t) : unit =
     Format.fprintf fmt "  %1.3f\n" v.{i}
   done
 
+let arg_max (x : t) =
+  let max_i = ref 0 in
+  let max_v = ref x.{0} in
+  for i = 0 to dim x - 1 do
+    let v = x.{i} in
+    if !max_v < v then begin
+      max_i := i;
+      max_v := v
+    end
+  done;
+  !max_i

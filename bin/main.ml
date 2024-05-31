@@ -37,15 +37,38 @@ let _time_it (f : unit -> unit) : float =
   let t = Sys.time () in
   f ();
   Sys.time () -. t
-  
 
-(* let stress_test () =
-  let n = 1 lsl 22 in
-  let a = Vector.random n in
-  let b = Vector.random n in
-  let c = Vector.zeros n in
-  Printf.printf "CPU    runtime: %f\n" (time_it (fun () -> ignore(Linalg.slow_vec_mul a b c)));
-  Printf.printf "OpenCL runtime: %f\n" (time_it (fun () -> ignore(Linalg.vec_mul a b c))) *)
+let mnist () =
+  let open Nn in
+  Random.self_init ();
+  let nn_dim = 28 * 28 + 1 in
+  let nn_pre s = s.Mnist.data |> Array.to_list |> List.cons 1 |> Array.of_list |> Array.map Float.of_int |> Vector.of_array in
+  let nn_lay = [ Layer.sigmoid nn_dim ] in
+  let nn_loss = Loss.CROSS_ENTROPY in
+  let nn_post = Vector.arg_max in
+  Printf.printf "Creating the NN\n";
+  flush_all ();
+  let nn : (Mnist.t, int) NN.t =
+    NN.make nn_pre nn_dim nn_lay nn_loss nn_post
+  in
+  let get_sample () =
+    let i = Random.int 30000 in
+    (* Printf.printf "sampled digit nb %d\n" i;
+    flush_all (); *)
+    Mnist.of_single_file (Printf.sprintf "./data/mnist/digit_%d.csv" i)
+  in
+  Printf.printf "Starting to learn\n";
+  flush_all ();
+  for i = 0 to 10000 do
+    let x = get_sample () in
+    let y = Loss.Class (x.Mnist.label) in
+    NN.forward nn x;
+    NN.backward nn x y;
+    if i mod 100 = 0 then begin
+      Printf.printf "current loss = %1.10f [%1.10f]\n" (NN.loss nn y) (NN.loss_eager nn x y);
+      flush_all ()
+    end
+  done
 
 let () =
   if Array.length Sys.argv < 2 then
@@ -53,22 +76,8 @@ let () =
   else
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
-    (* | "opencl" ->
-      Linalg.init ();
-      let c = Vector.of_array [| 0.; 0.; 0.; 0.; |] in
-      let a = Vector.of_array [| 1.; 2.; 3.; 4.; |] in
-      let b = Vector.of_array [| 3.; 4.; 5.; 6.; |] in
-      Linalg.vec_add a b c;
-      for i = 0 to 3 do
-        Printf.printf "%f +. %f = %f\n" a.{i} b.{i} c.{i}
-      done;
-      let r = Linalg.vec_dot a b in
-      Printf.printf "dot product is %f\n" r;
-      let m = Matrix.of_array [| [| 1.; 0. |]; [| 0.; 2.|]|] in
-      let v = Vector.of_array [| 2.; 3.|] in
-      let p = Linalg.mat_vec_mul m v in
-      Printf.printf "matrix vector product is [%f %f]\n" p.{0} p.{1}
-    | "test" ->
-      Linalg.init ();
-      stress_test () *)
+    | "mnist" ->
+      Printf.printf "Hello\n";
+      flush_all ();
+      mnist ()
     | _ -> fail_and_usage ()
