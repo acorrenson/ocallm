@@ -38,34 +38,40 @@ let _time_it (f : unit -> unit) : float =
   f ();
   Sys.time () -. t
 
+let get_sample () =
+  let i = Random.int 30000 in
+  Mnist.of_single_file (Printf.sprintf "./data/mnist/digit_%d.csv" i)
+
+let estimate_loss nn =
+  let n = 10 in
+  Vector.init n (fun _ ->
+    let x = get_sample () in
+    Nn.NN.loss_eager nn x (Nn.Loss.Class x.label)
+  )
+  |> Vector.mean
+  |> Printf.printf "current loss (average over %d random sample) = %1.10f\n" n
+
 let mnist () =
   let open Nn in
   Random.self_init ();
   let nn_dim = 28 * 28 + 1 in
-  let nn_pre s = s.Mnist.data |> Array.to_list |> List.cons 1 |> Array.of_list |> Array.map Float.of_int |> Vector.of_array in
-  let nn_lay = [ Layer.sigmoid nn_dim ] in
+  let add_bias x = Array.to_list x |> List.cons 1 |> Array.of_list in
+  let normalize x = Array.map (fun x -> (float_of_int x) /. 255.) x in
+  let nn_pre s = s.Mnist.data |> add_bias |> normalize |> Vector.of_array in
+  let nn_lay = [ Layer.relu 10 ] in
   let nn_loss = Loss.CROSS_ENTROPY in
   let nn_post = Vector.arg_max in
-  Printf.printf "Creating the NN\n";
-  flush_all ();
   let nn : (Mnist.t, int) NN.t =
     NN.make nn_pre nn_dim nn_lay nn_loss nn_post
   in
-  let get_sample () =
-    let i = Random.int 30000 in
-    (* Printf.printf "sampled digit nb %d\n" i;
-    flush_all (); *)
-    Mnist.of_single_file (Printf.sprintf "./data/mnist/digit_%d.csv" i)
-  in
-  Printf.printf "Starting to learn\n";
-  flush_all ();
-  for i = 0 to 10000 do
+  
+  for i = 0 to 100000 do
     let x = get_sample () in
-    let y = Loss.Class (x.Mnist.label) in
+    let y = Loss.Class x.label in
     NN.forward nn x;
     NN.backward nn x y;
-    if i mod 100 = 0 then begin
-      Printf.printf "current loss = %1.10f [%1.10f]\n" (NN.loss nn y) (NN.loss_eager nn x y);
+    if i mod 1000 = 0 then begin
+      estimate_loss nn;
       flush_all ()
     end
   done
@@ -77,7 +83,5 @@ let () =
     match Sys.argv.(1) with
     | "sanitize" -> sanitize ()
     | "mnist" ->
-      Printf.printf "Hello\n";
-      flush_all ();
       mnist ()
     | _ -> fail_and_usage ()

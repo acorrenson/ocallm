@@ -91,10 +91,11 @@ module Loss = struct
     | Vec of Vector.t
 
   let softmax (x : Vector.t) =
-    let y = Vector.map exp x in
+    let m = Vector.max x in
+    let y = Vector.map (fun x -> exp (x -. m)) x in
     let s = Vector.sum y in
     for i = 0 to Vector.dim y - 1 do
-      y.{i} <- y.{i} /. s
+      y.{i} <- y.{i} /. s;
     done;
     y
 
@@ -105,9 +106,6 @@ module Loss = struct
     | CROSS_ENTROPY ->
       match target with
       | Class c ->
-        Format.printf "loss from logits: [%f %f %f ...]\n" logits.{0} logits.{1} logits.{2};
-        flush_all ();
-        ignore(read_line ());
         Vector.(logits |> map exp |> sum |> log) -. logits.{c}
       | Vec _ -> failwith "only classes are supported as targets"
 
@@ -119,7 +117,8 @@ module Loss = struct
       match target with
       | Class c ->
         let v = softmax logits in
-        v.{c} <- v.{c} -. 1.; v
+        v.{c} <- v.{c} -. 1.;
+        v
       | Vec _ -> failwith "only classes are supported as targets"
 
 end
@@ -180,14 +179,17 @@ module NN = struct
       nn._A.(i) <- ai;
     done
 
-  (** Feed an input [x] to a model [nn] and outputs a final prediction (without computing/storing all intermediate results) *)
-  let predict_eager (nn : ('i, 'o) t) (x : 'i) : 'o =
+  let forward_eager (nn : ('i, 'o) t) (x : 'i) : Vector.t =
     let v = ref (nn.pre x) in
     let nb_layers = Array.length nn.layers in
     for i = 0 to nb_layers - 1 do
       v := Layer.forward nn.layers.(i) nn.weights.(i) !v
     done;
-    nn.post (!v)
+    !v
+
+  (** Feed an input [x] to a model [nn] and outputs a final prediction (without computing/storing all intermediate results) *)
+  let predict_eager (nn : ('i, 'o) t) (x : 'i) : 'o =
+    nn.post (forward_eager nn x)
 
   let loss_eager (nn : ('i, 'o) t) (x : 'i) (target : Loss.target) : float =
     let v = ref (nn.pre x) in
@@ -209,12 +211,10 @@ module NN = struct
     let nb_layers = Array.length nn.layers in
     let i_last = nb_layers - 1 in
     let logits = nn._A.(i_last) in
-    
     (* Compute the deltas *)
     nn._D.(i_last) <- Loss.backward nn.loss logits target;
     for i = i_last - 1 downto 0 do
-      nn._D.(i) <- Layer.backward nn.layers.(i) nn._Z.(i) nn.weights.(i + 1) nn._D.(i + 1);
-      assert (Vector.dim nn._D.(i) = nn.layers.(i).nodes);
+      nn._D.(i) <- Layer.backward nn.layers.(i) nn._Z.(i) nn.weights.(i + 1) nn._D.(i + 1)
     done;
 
     (* Update the weights *)
@@ -248,9 +248,3 @@ let test () =
     Printf.printf "current loss = %1.10f\n" (NN.loss nn y);
     NN.backward nn x y
   done
-
-  (* for i = 0 to 2 do
-
-    Format.printf "Deltas of layer %d are:\n%a" i Vector.pp nn._D.(i)
-  done
- *)

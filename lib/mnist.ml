@@ -30,7 +30,8 @@ let of_file ?(export=false) (fname : string) =
 
 let of_single_file (fname : string) =
   let ic = open_in fname in
-  input_line ic |> of_line
+  let r = input_line ic |> of_line in
+  close_in ic; r
 
 (** Export a sample to a PGM image *)
 let export_pgm (x : t) (fname : string) =

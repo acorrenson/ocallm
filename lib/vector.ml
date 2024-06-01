@@ -12,7 +12,7 @@ let zeros size : t =
   Array1.init float32 c_layout size (fun _ -> 0.)
 
 let random size : t =
-    Array1.init float32 c_layout size (fun _ -> Random.float max_float)
+  Array1.init float32 c_layout size (fun _ -> Random.float max_float)
 
 let ones size : t =
   Array1.init float32 c_layout size (fun _ -> 1.)
@@ -39,7 +39,7 @@ let sum (x : t) : float =
 let pp fmt (v : t) : unit =
   Format.fprintf fmt "Vector\n";
   for i = 0 to dim v - 1 do
-    Format.fprintf fmt "  %1.3f\n" v.{i}
+    Format.fprintf fmt "  %f\n" v.{i}
   done
 
 let arg_max (x : t) =
@@ -53,3 +53,15 @@ let arg_max (x : t) =
     end
   done;
   !max_i
+
+let max (x : t) =
+  let max_v = ref x.{0} in
+  for i = 0 to dim x - 1 do
+    max_v := max !max_v x.{i}
+  done;
+  !max_v
+
+let mean (x : t) =
+  let n = float_of_int (dim x) in
+  sum (map (fun x -> x /. n) x)
+  
