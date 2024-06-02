@@ -200,3 +200,33 @@ module Sanitizer = struct
       true
     end with _ -> false
 end
+
+let complete_file_name src dir file =
+  Printf.sprintf "%s/%s/%s" src dir file
+
+let complete_path src dir =
+  Printf.sprintf "%s/%s" src dir
+
+let fail_and_usage () =
+  Printf.eprintf "usage: %s [sanitize path/to/articles]\n" Sys.argv.(0);
+  exit (-1)
+
+let sanitize_dir src dir =
+  Printf.printf "processing [%s]\n" dir;
+  Array.iter (fun file ->
+    if Filename.extension file = ".txt" then begin
+      let fname = complete_file_name src dir file in
+      Printf.printf "   sanitizing %s " fname;
+      if Sanitizer.sanitize fname then
+        print_string "done ✅\n"
+      else
+        print_string "failed ❌\n"
+    end
+  ) (Sys.readdir (complete_path src dir))
+
+let sanitize src =
+  Array.iter (fun dir ->
+    if String.starts_with ~prefix:"batch_" dir then
+      sanitize_dir src dir
+    else ()
+  ) (Sys.readdir src)
