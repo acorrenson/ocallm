@@ -16,15 +16,18 @@ let of_line (line : string) =
   in
   { label = List.hd values; data = Array.of_list (List.tl values) }
 
+
 (** Convert a CSV into a list of MNIST samples *)
 let of_file ?(export=false) (fname : string) =
   let ic = open_in fname in
+  let path = Printf.sprintf "%s/digit_%d.csv" (Filename.dirname fname) in
+  let export_csv i l =
+    let oc = open_out (path i) in
+    Printf.fprintf oc "%s\n" l;
+    close_out oc
+  in
   ic |> In_channel.input_lines |> List.tl |> List.mapi (fun i l ->
-    if export then begin
-      let oc = open_out (Printf.sprintf "%s/digit_%d.csv" (Filename.dirname fname) i) in
-      Printf.fprintf oc "%s\n" l;
-      close_out oc
-    end;
+    (if export then export_csv i l);
     of_line l
   )
 
@@ -44,13 +47,6 @@ let export_pgm (x : t) (fname : string) =
     Printf.fprintf oc "\n"
   done;
   close_out oc
-
-(* let export_csv (fname : string) =
-  let dir = Filename.dirname fname in
-  of_file fname |> List.iteri (fun i x ->
-    let oc = open_out (Printf.sprintf "%s/digit_%d.csv" dir i) in
-    Printf.fprintf oc "%d" x
-  ) *)
 
 (** Export all samples of a CSV into PGM images *)
 let export_all_pgm (fname : string) =
